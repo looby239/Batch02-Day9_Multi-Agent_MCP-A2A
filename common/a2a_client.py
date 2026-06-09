@@ -25,6 +25,14 @@ from a2a.types import (
 logger = logging.getLogger(__name__)
 
 
+import os
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    reraise=True
+)
 async def delegate(
     endpoint: str,
     question: str,
@@ -44,7 +52,10 @@ async def delegate(
     Returns:
         The agent's text response, or an empty string if none could be extracted.
     """
-    async with httpx.AsyncClient(timeout=300.0) as http_client:
+    async with httpx.AsyncClient(
+        timeout=300.0,
+        headers={"X-API-Key": os.getenv("A2A_API_KEY", "secret-123")}
+    ) as http_client:
         # Fetch agent card
         card_url = f"{endpoint}/.well-known/agent.json"
         card_resp = await http_client.get(card_url)

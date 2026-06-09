@@ -92,6 +92,17 @@ async def main() -> None:
     )
     app = app_builder.build()
 
+    @app.middleware("http")
+    async def verify_api_key(request, call_next):
+        from fastapi.responses import JSONResponse
+        if request.url.path.endswith("/.well-known/agent.json"):
+            return await call_next(request)
+        api_key = request.headers.get("X-API-Key")
+        expected_key = os.getenv("A2A_API_KEY", "secret-123")
+        if api_key != expected_key:
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+        return await call_next(request)
+
     config = uvicorn.Config(app, host="0.0.0.0", port=PORT, log_level="info")
     server = uvicorn.Server(config)
     logger.info("Compliance Agent listening on port %d", PORT)

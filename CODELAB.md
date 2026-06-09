@@ -355,12 +355,50 @@ Mở 5 terminal tabs và xem logs của từng service:
 **Bài Tập 5.1:** Trace request flow
 
 Trong logs, tìm `trace_id` và theo dõi request đi qua các agents. Vẽ sequence diagram.
+sequenceDiagram
+    participant User as Test Client
+    participant CA as Customer Agent
+    participant Reg as Registry
+    participant LA as Law Agent
+    participant TA as Tax Agent
+    participant CoA as Compliance Agent
+
+    User->>CA: Hỏi câu hỏi pháp lý/thuế
+    CA->>Reg: Hỏi địa chỉ của Law Agent?
+    Reg-->>CA: Trả về URL của Law Agent
+    CA->>LA: Chuyển tiếp câu hỏi qua A2A Protocol
+    
+    par Parallel Execution
+        LA->>Reg: Hỏi địa chỉ Tax Agent?
+        Reg-->>LA: URL của Tax Agent
+        LA->>TA: Hỏi vấn đề Thuế
+        
+        LA->>Reg: Hỏi địa chỉ Compliance Agent?
+        Reg-->>LA: URL của Compliance Agent
+        LA->>CoA: Hỏi vấn đề Tuân thủ
+    end
+    
+    TA-->>LA: Phân tích về Thuế
+    CoA-->>LA: Phân tích về Tuân thủ
+    
+    LA->>LA: Gộp (Aggregate) tất cả
+    LA-->>CA: Trả về câu trả lời tổng hợp
+    CA-->>User: Hiển thị cho User
+
 
 **Bài Tập 5.2:** Test dynamic discovery
 
 1. Dừng Tax Agent (Ctrl+C)
 2. Chạy lại `test_client.py`
 3. Quan sát lỗi và cách hệ thống xử lý
+**Hiện tượng:** 
+Law Agent sẽ hỏi Registry tìm Tax Agent. 
+Registry có thể không tìm thấy (nếu TTL hết hạn) hoặc trả về URL cũ, nhưng khi Law Agent kết nối sẽ bị Connection Refused. 
+Hệ thống A2A sẽ phát hiện ra lỗi, báo Timeout/Error từ nhánh Tax Agent.
+**Lợi ích:** 
+Hệ thống không bị sập hoàn toàn (Single Point of Failure). 
+Customer Agent vẫn sống, Law Agent vẫn sống và nhận được kết quả từ Compliance Agent, 
+nó có thể trả lời "Tôi không kết nối được chuyên gia Thuế lúc này, nhưng đây là phân tích về luật...".
 
 **Bài Tập 5.3:** Modify agent behavior
 
@@ -383,22 +421,22 @@ Sửa `tax_agent/graph.py`, thay đổi system prompt để agent trả lời ng
 ### Câu Hỏi Ôn Tập
 
 1. Khi nào nên dùng single agent thay vì multi-agent?
-   **Trả lời:** Dùng Single Agent khi bài toán có scope nhỏ, logic tuần tự, ít tool hoặc không đòi hỏi sự chuyên môn hoá sâu ở các khía cạnh khác nhau. Multi-agent (chia để trị) được ưu tiên khi hệ thống phức tạp, có nhiều domain chuyên biệt (Luật, Thuế, IT), cần xử lý song song, hoặc khi các Agent do các team/tổ chức khác nhau phát triển độc lập.
+    Dùng Single Agent khi bài toán có scope nhỏ, logic tuần tự, ít tool hoặc không đòi hỏi sự chuyên môn hoá sâu ở các khía cạnh khác nhau. Multi-agent (chia để trị) được ưu tiên khi hệ thống phức tạp, có nhiều domain chuyên biệt (Luật, Thuế, IT), cần xử lý song song, hoặc khi các Agent do các team/tổ chức khác nhau phát triển độc lập.
 
 2. Ưu điểm của A2A protocol so với gRPC hoặc REST thông thường?
-   **Trả lời:** REST/gRPC là chuẩn giao tiếp chung cho mọi dịch vụ. Trong khi đó, **A2A Protocol** được thiết kế đặc thù cho các AI Agent:
+   REST/gRPC là chuẩn giao tiếp chung cho mọi dịch vụ. Trong khi đó, **A2A Protocol** được thiết kế đặc thù cho các AI Agent:
    - Có cơ chế khám phá năng lực (Agent Card) giúp các agent hiểu chức năng của nhau.
    - Chuẩn hoá I/O bằng JSON Schema để LLM dễ dàng hiểu và sinh dữ liệu tự động.
    - Hỗ trợ truyền `trace_id` thống nhất cho mục đích debug hệ thống chuỗi.
    - Tối ưu cho cơ chế streaming (Server-Sent Events) dành riêng cho LLM.
 
 3. Làm thế nào để prevent infinite delegation loops trong A2A?
-   **Trả lời:** Để tránh vòng lặp vô tận (ví dụ Agent A gọi B, B gọi lại A), ta có thể:
+   Để tránh vòng lặp vô tận (ví dụ Agent A gọi B, B gọi lại A), ta có thể:
    - Sử dụng cờ `max_hops` (số bước nhảy tối đa, ví dụ = 5), mỗi khi chuyển tiếp trừ đi 1, về 0 thì báo lỗi.
    - Truyền danh sách `visited_agents` trong header request để nhận diện các Agent đã tham gia vào luồng phân giải, cấm gọi lại những người đã hỏi.
 
 4. Tại sao cần Registry service? Có thể hardcode URLs không?
-   **Trả lời:** Cần Registry để các Agent có thể tìm thấy nhau tự động (Dynamic Discovery). Có thể hardcode URL ở quy mô nhỏ hoặc dev local. Tuy nhiên, trên Production, IP/Port sẽ thay đổi liên tục, và bạn sẽ muốn chạy nhiều bản sao (Scale-up) của cùng một Agent để tải nặng. Registry giúp tự động load-balancing và loại bỏ URL khi một Agent bị sập mà không cần sửa code thủ công ở những agent còn lại.
+   Cần Registry để các Agent có thể tìm thấy nhau tự động (Dynamic Discovery). Có thể hardcode URL ở quy mô nhỏ hoặc dev local. Tuy nhiên, trên Production, IP/Port sẽ thay đổi liên tục, và bạn sẽ muốn chạy nhiều bản sao (Scale-up) của cùng một Agent để tải nặng. Registry giúp tự động load-balancing và loại bỏ URL khi một Agent bị sập mà không cần sửa code thủ công ở những agent còn lại.
 
 ### Bài Tập Nâng Cao (Tự Học)
 

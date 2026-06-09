@@ -727,6 +727,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "python-pptx" },
+    { name = "tenacity" },
     { name = "uvicorn" },
 ]
 
@@ -742,6 +743,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.0" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "python-pptx", specifier = ">=1.0.2" },
+    { name = "tenacity", specifier = ">=8.5.0" },
     { name = "uvicorn", specifier = ">=0.34.0" },
 ]
 
