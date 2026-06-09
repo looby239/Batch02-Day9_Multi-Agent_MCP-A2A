@@ -92,6 +92,15 @@ async def main() -> None:
     )
     app = app_builder.build()
 
+    from fastapi.middleware.cors import CORSMiddleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     @app.middleware("http")
     async def verify_api_key(request, call_next):
         from fastapi.responses import JSONResponse

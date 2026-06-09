@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stage 4 Multi-Agent Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --border: #334155;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --accent: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --law-agent: #8b5cf6;
+            --tax-agent: #f59e0b;
+            --comp-agent: #10b981;
+            --agg-agent: #ec4899;
+        }
+
+        * { box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            height: 100vh;
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
+        }
+
+        .chat-section { flex: 1; min-width: 400px; }
+        .viz-section { flex: 1.5; background: #0b1120; }
+
+        .header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.03);
+        }
+
+        /* Chat Panel */
+        .messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .msg {
+            padding: 12px 16px;
+            border-radius: 8px;
+            max-width: 90%;
+            line-height: 1.5;
+        }
+
+        .msg.user {
+            align-self: flex-end;
+            background: var(--accent);
+        }
+
+        .msg.system {
+            align-self: flex-start;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--border);
+        }
+
+        .input-box {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            flex: 1;
+            padding: 10px 16px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 6px;
+            outline: none;
+        }
+
+        input:focus { border-color: var(--accent); }
+
+        button {
+            padding: 10px 20px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Visualization Panel */
+        .timeline {
+            padding: 30px;
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .agent-node {
+            display: flex;
+            gap: 16px;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: slideIn 0.4s ease forwards;
+        }
+
+        @keyframes slideIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .node-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .node-content {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            flex: 1;
+        }
+
+        .node-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .badge {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .markdown-body { font-size: 0.9rem; color: var(--muted); line-height: 1.6; }
+        .markdown-body h2 { font-size: 1.1rem; color: var(--text); margin-top: 0; }
+        .markdown-body p { margin-top: 0; }
+        
+        .loader {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Agent Colors */
+        .node-analyze_law .node-icon { background: var(--law-agent); color: white; }
+        .node-analyze_law .node-title { color: var(--law-agent); }
+
+        .node-call_tax_specialist .node-icon { background: var(--tax-agent); color: white; }
+        .node-call_tax_specialist .node-title { color: var(--tax-agent); }
+
+        .node-call_compliance_specialist .node-icon { background: var(--comp-agent); color: white; }
+        .node-call_compliance_specialist .node-title { color: var(--comp-agent); }
+        
+        .node-privacy_agent .node-icon { background: #38bdf8; color: white; }
+        .node-privacy_agent .node-title { color: #38bdf8; }
+
+        .node-aggregate .node-icon { background: var(--agg-agent); color: white; }
+        .node-aggregate .node-title { color: var(--agg-agent); }
+    </style>
+</head>
+<body>
+
+<div class="panel chat-section">
+    <div class="header">
+        User Chat
+    </div>
+    <div class="messages" id="messages">
+        <div class="msg system">
+            Chào bạn! Đây là trang demo trực quan các bước suy luận của mô hình **Stage 4 (Multi-Agent In-Process)**.
+        </div>
+    </div>
+    <form class="input-box" id="form">
+        <input type="text" id="input" placeholder="Nhập câu hỏi (VD: Trốn thuế và không bảo mật dữ liệu bị phạt sao?)" autocomplete="off">
+        <button type="submit" id="submit-btn">Gửi</button>
+    </form>
+</div>
+
+<div class="panel viz-section">
+    <div class="header">
+        <span>LangGraph Agent Interactions</span>
+        <span class="badge" style="background: var(--accent);">Real-time</span>
+    </div>
+    <div class="timeline" id="timeline">
+        <!-- Visualization nodes appear here -->
+        <div style="text-align: center; color: var(--muted); margin-top: 50px;">
+            Đang chờ câu hỏi để phân luồng...
+        </div>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const submitBtn = document.getElementById('submit-btn');
+    const messages = document.getElementById('messages');
+    const timeline = document.getElementById('timeline');
+
+    function addChat(text, type) {
+        const div = document.createElement('div');
+        div.className = `msg ${type}`;
+        if (type === 'system') div.innerHTML = marked.parse(text);
+        else div.textContent = text;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    const agentNames = {
+        'analyze_law': 'Law Agent (Lead)',
+        'call_tax_specialist': 'Tax Specialist',
+        'call_compliance_specialist': 'Compliance Specialist',
+        'privacy_agent': 'Privacy Specialist',
+        'aggregate': 'Aggregator (Final)'
+    };
+
+    const agentIcons = {
+        'analyze_law': '⚖️',
+        'call_tax_specialist': '💰',
+        'call_compliance_specialist': '📋',
+        'privacy_agent': '🔒',
+        'aggregate': '✨'
+    };
+
+    function addTimelineNode(nodeId, content) {
+        const div = document.createElement('div');
+        div.className = `agent-node node-${nodeId}`;
+        
+        div.innerHTML = `
+            <div class="node-icon">${agentIcons[nodeId] || '🤖'}</div>
+            <div class="node-content">
+                <div class="node-title">
+                    ${agentNames[nodeId] || nodeId}
+                    <span class="badge">Completed</span>
+                </div>
+                <div class="markdown-body">${marked.parse(content || 'No output.')}</div>
+            </div>
+        `;
+        
+        timeline.appendChild(div);
+        timeline.scrollTop = timeline.scrollHeight;
+    }
+
+    function showLoading() {
+        const div = document.createElement('div');
+        div.id = 'loading-node';
+        div.className = `agent-node`;
+        div.innerHTML = `
+            <div class="node-icon" style="background: #334155;">🔄</div>
+            <div class="node-content" style="display:flex; align-items:center; gap: 10px;">
+                <div class="loader"></div> <span style="color: var(--muted);">Agents are thinking & communicating...</span>
+            </div>
+        `;
+        timeline.appendChild(div);
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = input.value.trim();
+        if(!text) return;
+
+        addChat(text, 'user');
+        input.value = '';
+        input.disabled = true;
+        submitBtn.disabled = true;
+        
+        timeline.innerHTML = '';
+        showLoading();
+
+        try {
+            const response = await fetch('http://localhost:8000/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let buffer = "";
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n\n");
+                buffer = lines.pop(); // Keep the incomplete part
+
+                for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                        const dataStr = line.replace("data: ", "");
+                        if (dataStr === "[DONE]") {
+                            continue;
+                        }
+
+                        const event = JSON.parse(dataStr);
+                        if (event.error) {
+                            addChat("Lỗi: " + event.error, "system");
+                        } else {
+                            const loadingNode = document.getElementById('loading-node');
+                            if (loadingNode) timeline.removeChild(loadingNode);
+                            
+                            addTimelineNode(event.node, event.content);
+                            
+                            // Re-append loading if not the final node
+                            if (event.node !== 'aggregate') {
+                                showLoading();
+                            } else {
+                                addChat(event.content, "system");
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            const loadingNode = document.getElementById('loading-node');
+            if (loadingNode) timeline.removeChild(loadingNode);
+            addChat("Không thể kết nối đến server Stage 4. Vui lòng kiểm tra đã chạy python stage_4_server.py chưa.", "system");
+        } finally {
+            input.disabled = false;
+            submitBtn.disabled = false;
+            input.focus();
+        }
+    });
+</script>
+</body>
+</html>

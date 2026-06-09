@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent Legal Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-color: #0f172a;
+            --chat-bg: rgba(30, 41, 59, 0.7);
+            --user-msg: #3b82f6;
+            --agent-msg: rgba(51, 65, 85, 0.8);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: var(--text-main);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 900px;
+            height: 90vh;
+            background: var(--chat-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 20px 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background-color: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #10b981;
+        }
+
+        .chat-header h1 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .chat-header p {
+            margin: 4px 0 0;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 16px 20px;
+            border-radius: 16px;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: var(--user-msg);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.agent {
+            align-self: flex-start;
+            background: var(--agent-msg);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.agent p:first-child { margin-top: 0; }
+        .message.agent p:last-child { margin-bottom: 0; }
+        
+        .message.agent pre {
+            background: rgba(0,0,0,0.3);
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        
+        .message.agent code {
+            font-family: monospace;
+            background: rgba(0,0,0,0.2);
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        .chat-input-container {
+            padding: 20px 30px;
+            background: rgba(15, 23, 42, 0.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .input-wrapper:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 12px 16px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        input::placeholder {
+            color: var(--text-muted);
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+        }
+
+        button:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            background: var(--agent-msg);
+            padding: 16px 20px;
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            gap: 6px;
+        }
+
+        .typing-indicator.active {
+            display: flex;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        /* Markdown styling */
+        .message.agent h2 { margin-top: 24px; margin-bottom: 12px; font-size: 1.2rem; color: #818cf8; }
+        .message.agent hr { border-color: rgba(255,255,255,0.1); margin: 20px 0; }
+        .message.agent ul { padding-left: 20px; }
+        .message.agent li { margin-bottom: 6px; }
+
+        .time-badge {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">
+        <div class="status-dot"></div>
+        <div>
+            <h1>Distributed Multi-Agent System</h1>
+            <p>Law Agent + Tax Agent + Compliance Agent</p>
+        </div>
+    </div>
+    
+    <div class="chat-messages" id="messages">
+        <div class="message agent">
+            <p>Chào bạn! Tôi là trợ lý pháp lý ảo. Bạn có thể hỏi tôi bất kỳ vấn đề pháp lý nào, tôi sẽ điều phối câu hỏi của bạn đến các chuyên gia Luật, Thuế và Tuân thủ để có câu trả lời tổng hợp tốt nhất.</p>
+        </div>
+        <div class="typing-indicator" id="typing">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+    </div>
+
+    <div class="chat-input-container">
+        <form class="input-wrapper" id="chat-form">
+            <input type="text" id="user-input" placeholder="Hỏi tôi về luật, thuế, dữ liệu..." required autocomplete="off">
+            <button type="submit" id="send-btn">Gửi</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Generates a UUID (v4) for A2A Message IDs
+    function uuidv4() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    const messagesEl = document.getElementById('messages');
+    const typingEl = document.getElementById('typing');
+    const formEl = document.getElementById('chat-form');
+    const inputEl = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    function addMessage(content, sender, latency = null) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${sender}`;
+        
+        if (sender === 'agent') {
+            msgDiv.innerHTML = marked.parse(content);
+            if (latency) {
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'time-badge';
+                timeSpan.innerText = `⏱ Phản hồi trong ${latency.toFixed(2)}s`;
+                msgDiv.appendChild(timeSpan);
+            }
+        } else {
+            msgDiv.textContent = content;
+        }
+        
+        // Insert before the typing indicator
+        messagesEl.insertBefore(msgDiv, typingEl);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    formEl.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const text = inputEl.value.trim();
+        if (!text) return;
+        
+        // Add user message
+        addMessage(text, 'user');
+        
+        // Prepare UI for waiting
+        inputEl.value = '';
+        inputEl.disabled = true;
+        sendBtn.disabled = true;
+        typingEl.classList.add('active');
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+
+        const startTime = performance.now();
+
+        try {
+            // Customer Agent endpoint (must have CORS enabled)
+            const response = await fetch('http://localhost:10100/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': 'secret-123'
+                },
+                body: JSON.stringify({
+                    id: uuidv4(),
+                    params: {
+                        message: {
+                            role: 'user',
+                            parts: [{ text: text }],
+                            message_id: uuidv4()
+                        }
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP Error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const latency = (performance.now() - startTime) / 1000;
+            
+            // Extract text from A2A Response structure
+            let replyText = "Không nhận được phản hồi phù hợp.";
+            if (data.result && data.result.parts && data.result.parts.length > 0) {
+                replyText = data.result.parts[0].text;
+            }
+            
+            addMessage(replyText, 'agent', latency);
+
+        } catch (error) {
+            console.error('Error fetching from agent:', error);
+            addMessage(`❌ Đã xảy ra lỗi khi kết nối với Agent: ${error.message}. Vui lòng đảm bảo bạn đã chạy ./start_all.sh.`, 'agent');
+        } finally {
+            typingEl.classList.remove('active');
+            inputEl.disabled = false;
+            sendBtn.disabled = false;
+            inputEl.focus();
+        }
+    });
+</script>
+
+</body>
+</html>
