@@ -383,9 +383,22 @@ Sửa `tax_agent/graph.py`, thay đổi system prompt để agent trả lời ng
 ### Câu Hỏi Ôn Tập
 
 1. Khi nào nên dùng single agent thay vì multi-agent?
+   **Trả lời:** Dùng Single Agent khi bài toán có scope nhỏ, logic tuần tự, ít tool hoặc không đòi hỏi sự chuyên môn hoá sâu ở các khía cạnh khác nhau. Multi-agent (chia để trị) được ưu tiên khi hệ thống phức tạp, có nhiều domain chuyên biệt (Luật, Thuế, IT), cần xử lý song song, hoặc khi các Agent do các team/tổ chức khác nhau phát triển độc lập.
+
 2. Ưu điểm của A2A protocol so với gRPC hoặc REST thông thường?
+   **Trả lời:** REST/gRPC là chuẩn giao tiếp chung cho mọi dịch vụ. Trong khi đó, **A2A Protocol** được thiết kế đặc thù cho các AI Agent:
+   - Có cơ chế khám phá năng lực (Agent Card) giúp các agent hiểu chức năng của nhau.
+   - Chuẩn hoá I/O bằng JSON Schema để LLM dễ dàng hiểu và sinh dữ liệu tự động.
+   - Hỗ trợ truyền `trace_id` thống nhất cho mục đích debug hệ thống chuỗi.
+   - Tối ưu cho cơ chế streaming (Server-Sent Events) dành riêng cho LLM.
+
 3. Làm thế nào để prevent infinite delegation loops trong A2A?
+   **Trả lời:** Để tránh vòng lặp vô tận (ví dụ Agent A gọi B, B gọi lại A), ta có thể:
+   - Sử dụng cờ `max_hops` (số bước nhảy tối đa, ví dụ = 5), mỗi khi chuyển tiếp trừ đi 1, về 0 thì báo lỗi.
+   - Truyền danh sách `visited_agents` trong header request để nhận diện các Agent đã tham gia vào luồng phân giải, cấm gọi lại những người đã hỏi.
+
 4. Tại sao cần Registry service? Có thể hardcode URLs không?
+   **Trả lời:** Cần Registry để các Agent có thể tìm thấy nhau tự động (Dynamic Discovery). Có thể hardcode URL ở quy mô nhỏ hoặc dev local. Tuy nhiên, trên Production, IP/Port sẽ thay đổi liên tục, và bạn sẽ muốn chạy nhiều bản sao (Scale-up) của cùng một Agent để tải nặng. Registry giúp tự động load-balancing và loại bỏ URL khi một Agent bị sập mà không cần sửa code thủ công ở những agent còn lại.
 
 ### Bài Tập Nâng Cao (Tự Học)
 
